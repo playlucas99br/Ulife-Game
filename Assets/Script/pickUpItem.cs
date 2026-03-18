@@ -4,6 +4,8 @@ public class PickObject : MonoBehaviour
 {
     public GameObject interactionText;
     public Transform holdPoint;
+    public Camera playerCamera;
+    public float interactDistance = 3f;
 
     static bool holdingItem = false;
 
@@ -19,16 +21,23 @@ public class PickObject : MonoBehaviour
 
     void Update()
     {
-        if(Input.GetKeyDown(KeyCode.E))
+        // Tecla E: pegar ou soltar
+        if (Input.GetKeyDown(KeyCode.E))
         {
-            if(!picked && playerNear && !holdingItem)
+            if (!picked && playerNear && !holdingItem)
             {
                 Pick();
             }
-            else if(picked)
+            else if (picked)
             {
                 Drop();
             }
+        }
+
+        // Clique esquerdo: encaixar
+        if (Input.GetMouseButtonDown(0))
+        {
+            TryPlace();
         }
     }
 
@@ -38,8 +47,8 @@ public class PickObject : MonoBehaviour
         holdingItem = true;
 
         transform.SetParent(holdPoint);
-        transform.localPosition = new Vector3(0,0,1);
-        transform.localRotation = Quaternion.identity;
+        transform.localPosition = new Vector3(0, 0, 1);
+        transform.localRotation = Quaternion.Euler(0, 270, 0);
 
         rb.useGravity = false;
         rb.isKinematic = true;
@@ -58,9 +67,107 @@ public class PickObject : MonoBehaviour
         rb.isKinematic = false;
     }
 
+    void TryPlace()
+    {
+        if (!picked)
+        {
+            Debug.Log("Não está segurando item");
+            return;
+        }
+
+        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+        RaycastHit hit;
+
+        int layerMask = LayerMask.GetMask("LogicSlot");
+        Debug.Log("LayerMask: " + layerMask);
+
+        if (Physics.Raycast(ray, out hit, interactDistance, layerMask))
+        {
+            Debug.Log("Raycast acertou algo na layer!");
+
+            Debug.Log("Objeto: " + hit.collider.name);
+            Debug.Log("Tag: " + hit.collider.tag);
+            Debug.Log("Layer: " + LayerMask.LayerToName(hit.collider.gameObject.layer));
+
+            Transform slot = hit.collider.GetComponentInParent<Transform>();
+
+            if (slot != null)
+            {
+                Debug.Log("Slot encontrado: " + slot.name);
+
+                Transform snapPoint = slot.Find("SnapPoint");
+
+                if (snapPoint != null)
+                {
+                    Debug.Log("SnapPoint encontrado!");
+                    PlaceOnSlot(snapPoint, slot.name);
+                }
+                else
+                {
+                    Debug.Log("SnapPoint NÃO encontrado!");
+                }
+            }
+            else
+            {
+                Debug.Log("Slot NULL!");
+            }
+        }
+        else
+        {
+            Debug.Log("Raycast NÃO acertou nada na layer LogicSlot");
+        }
+    }
+
+    void PlaceOnSlot(Transform snapPoint, string slotName)
+    {
+        picked = false;
+        holdingItem = false;
+
+        transform.SetParent(snapPoint);
+        transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.Euler(0, 270, 0);
+
+        rb.useGravity = false;
+        rb.isKinematic = true;
+
+        CheckLogicGatePlacement(slotName);
+    }
+
+    void CheckLogicGatePlacement(string slotName)
+    {
+        string heldItemName = gameObject.name.ToLower();
+        
+        if (slotName.Contains("molduraLogicaOr") && heldItemName.Contains("or") && !heldItemName.Contains("xor"))
+        {
+            DestroyGateBox("caixaComponentesPortaOr");
+        }
+        else if (slotName.Contains("molduraLogicaAnd") && heldItemName.Contains("and"))
+        {
+            DestroyGateBox("caixaComponentesPortaAnd");
+        }
+        else if (slotName.Contains("molduraLogicaXor") && heldItemName.Contains("xor"))
+        {
+            DestroyGateBox("caixaComponentesPortaXor");
+        }
+    }
+
+    void DestroyGateBox(string boxName)
+    {
+        GameObject box = GameObject.Find(boxName);
+        if (box != null)
+        {
+            Destroy(box);
+            Debug.Log(boxName + " deletada com sucesso!");
+        }
+        else
+        {
+            Debug.Log("Não foi possível encontrar " + boxName);
+        }
+    }
+
     void OnTriggerEnter(Collider other)
     {
-        if(other.CompareTag("Player") && !holdingItem)
+        if (other.CompareTag("Player") && !holdingItem)
         {
             playerNear = true;
             interactionText.SetActive(true);
@@ -69,7 +176,7 @@ public class PickObject : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
-        if(other.CompareTag("Player"))
+        if (other.CompareTag("Player"))
         {
             playerNear = false;
             interactionText.SetActive(false);
