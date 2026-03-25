@@ -17,6 +17,8 @@ public class PickObject : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
     }
 
     void Update()
@@ -46,7 +48,7 @@ public class PickObject : MonoBehaviour
         picked = true;
         holdingItem = true;
 
-        transform.SetParent(holdPoint);
+        transform.SetParent(holdPoint, false); 
         transform.localPosition = new Vector3(0, 0, 1);
         transform.localRotation = Quaternion.Euler(0, 270, 0);
 
