@@ -14,43 +14,39 @@ public class PickObject : MonoBehaviour
 
     Rigidbody rb;
 
-    void Start()
-    {
+    Vector3 originalScale;
+
+    void Start(){
         rb = GetComponent<Rigidbody>();
         rb.isKinematic = true;
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+        originalScale = transform.localScale;
     }
 
-    void Update()
-    {
+    void Update(){
         // Tecla E: pegar ou soltar
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            if (!picked && playerNear && !holdingItem)
-            {
+        if (Input.GetKeyDown(KeyCode.E)){
+            if (!picked && playerNear && !holdingItem){
                 Pick();
-            }
-            else if (picked)
-            {
+            }else if (picked){
                 Drop();
             }
         }
 
         // Clique esquerdo: encaixar
-        if (Input.GetMouseButtonDown(0))
-        {
+        if (Input.GetMouseButtonDown(0)){
             TryPlace();
         }
     }
 
-    void Pick()
-    {
+    void Pick(){
         picked = true;
         holdingItem = true;
 
-        transform.SetParent(holdPoint, false); 
+        transform.SetParent(holdPoint, true); 
         transform.localPosition = new Vector3(0, 0, 1);
         transform.localRotation = Quaternion.Euler(0, 270, 0);
+        transform.localScale = originalScale;
 
         rb.useGravity = false;
         rb.isKinematic = true;
@@ -58,70 +54,66 @@ public class PickObject : MonoBehaviour
         interactionText.SetActive(false);
     }
 
-    void Drop()
-    {
+    void Drop(){
         picked = false;
         holdingItem = false;
 
         transform.SetParent(null);
+        transform.localScale = originalScale;
 
         rb.useGravity = true;
         rb.isKinematic = false;
     }
 
-    void TryPlace()
-    {
-        if (!picked)
-        {
+    void TryPlace(){
+        if (!picked){
             Debug.Log("Não está segurando item");
             return;
         }
 
         Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
-        RaycastHit hit;
 
-        int layerMask = LayerMask.GetMask("LogicSlot");
-        Debug.Log("LayerMask: " + layerMask);
+        RaycastHit[] hits = Physics.RaycastAll(ray, interactDistance);
 
-        if (Physics.Raycast(ray, out hit, interactDistance, layerMask))
+        bool placed = false;
+
+        foreach (RaycastHit hit in hits)
         {
-            Debug.Log("Raycast acertou algo na layer!");
+            Transform slot = hit.collider.transform;
 
-            Debug.Log("Objeto: " + hit.collider.name);
-            Debug.Log("Tag: " + hit.collider.tag);
-            Debug.Log("Layer: " + LayerMask.LayerToName(hit.collider.gameObject.layer));
-
-            Transform slot = hit.collider.GetComponentInParent<Transform>();
-
-            if (slot != null)
-            {
-                Debug.Log("Slot encontrado: " + slot.name);
-
-                Transform snapPoint = slot.Find("SnapPoint");
-
-                if (snapPoint != null)
-                {
-                    Debug.Log("SnapPoint encontrado!");
-                    PlaceOnSlot(snapPoint, slot.name);
-                }
-                else
-                {
-                    Debug.Log("SnapPoint NÃO encontrado!");
-                }
+            if (slot.parent != null && slot.parent.name.ToLower().Contains("moldura")){
+                slot = slot.parent;
             }
-            else
-            {
-                Debug.Log("Slot NULL!");
+
+            Transform snapPoint = slot.Find("SnapPoint");
+
+            if (snapPoint == null && slot.name.ToLower().Contains("moldura")){
+                snapPoint = slot;
+                Debug.Log("SnapPoint não encontrado! Usando a própria moldura como SnapPoint.");
+            }
+
+            if (snapPoint != null){
+                Debug.Log("SnapPoint encontrado em: " + slot.name);
+
+                if (CanPlaceItemInSlot(gameObject.name, slot.name))
+                {
+                    PlaceOnSlot(snapPoint, slot.name);
+                    placed = true;
+                    break;
+                }
             }
         }
-        else
-        {
-            Debug.Log("Raycast NÃO acertou nada na layer LogicSlot");
+
+        if (!placed){
+            Debug.Log("Raycast NÃO acertou nenhuma moldura válida.");
         }
     }
 
-    void PlaceOnSlot(Transform snapPoint, string slotName)
-    {
+    bool CanPlaceItemInSlot(string itemName, string slotName){
+        return true;
+    }
+
+    void PlaceOnSlot(Transform snapPoint, string slotName){
         picked = false;
         holdingItem = false;
 
@@ -135,42 +127,31 @@ public class PickObject : MonoBehaviour
         CheckLogicGatePlacement(slotName);
     }
 
-    void CheckLogicGatePlacement(string slotName)
-    {
+    void CheckLogicGatePlacement(string slotName){
         string heldItemName = gameObject.name.ToLower();
         
-        if (slotName.Contains("molduraLogicaOr") && heldItemName.Contains("or") && !heldItemName.Contains("xor"))
-        {
+        if (slotName.Contains("molduraLogicaOr") && heldItemName.Contains("or") && !heldItemName.Contains("xor")){
             DestroyGateBox("caixaComponentesPortaOr");
-        }
-        else if (slotName.Contains("molduraLogicaAnd") && heldItemName.Contains("and"))
-        {
+        }else if (slotName.Contains("molduraLogicaAnd") && heldItemName.Contains("and")){
             DestroyGateBox("caixaComponentesPortaAnd");
-        }
-        else if (slotName.Contains("molduraLogicaXor") && heldItemName.Contains("xor"))
-        {
+        }else if (slotName.Contains("molduraLogicaXor") && heldItemName.Contains("xor")){
             DestroyGateBox("caixaComponentesPortaXor");
         }
     }
 
-    void DestroyGateBox(string boxName)
-    {
+    void DestroyGateBox(string boxName){
         GameObject box = GameObject.Find(boxName);
-        if (box != null)
-        {
+        if (box != null){
             Destroy(box);
             Debug.Log(boxName + " deletada com sucesso!");
-        }
-        else
-        {
+        }else{
             Debug.Log("Não foi possível encontrar " + boxName);
         }
     }
 
     void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Player") && !holdingItem)
-        {
+        if (other.CompareTag("Player") && !holdingItem){
             playerNear = true;
             interactionText.SetActive(true);
         }
@@ -178,8 +159,7 @@ public class PickObject : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("Player"))
-        {
+        if (other.CompareTag("Player")){
             playerNear = false;
             interactionText.SetActive(false);
         }
