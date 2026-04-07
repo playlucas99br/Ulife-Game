@@ -1,7 +1,6 @@
 using UnityEngine;
 
-public class PickObject : MonoBehaviour
-{
+public class PickObject : MonoBehaviour{
     public GameObject interactionText;
     public Transform holdPoint;
     public Camera playerCamera;
@@ -13,6 +12,9 @@ public class PickObject : MonoBehaviour
     bool picked = false;
 
     Rigidbody rb;
+    public LayerMask collisionLayers;
+    public float itemRadius = 0.3f;
+    public float holdDistance = 1.0f;
 
     Vector3 originalScale;
 
@@ -37,6 +39,35 @@ public class PickObject : MonoBehaviour
         if (Input.GetMouseButtonDown(0)){
             TryPlace();
         }
+
+        if (picked){
+            UpdateHeldPosition();
+        }
+    }
+
+    void UpdateHeldPosition(){
+        // Prevenir colisão com o próprio objeto
+        int oldLayer = gameObject.layer;
+        gameObject.layer = 2; // Ignore Raycast
+
+        float rayOffset = 0.1f;
+        Vector3 rayOrigin = playerCamera.transform.position + playerCamera.transform.forward * rayOffset;
+        Ray ray = new Ray(rayOrigin, playerCamera.transform.forward);
+        RaycastHit hit;
+
+        float targetDist = holdDistance;
+
+        int mask = collisionLayers.value;
+        if (mask == 0) mask = ~((1 << 2));
+
+        if (Physics.SphereCast(ray, itemRadius, out hit, holdDistance - rayOffset, mask, QueryTriggerInteraction.Ignore)){
+            targetDist = hit.distance + rayOffset;
+        }
+
+        gameObject.layer = oldLayer;
+
+        Vector3 targetLocalPos = new Vector3(0, 0, targetDist);
+        transform.localPosition = Vector3.Lerp(transform.localPosition, targetLocalPos, Time.deltaTime * 15f);
     }
 
     void Pick(){
@@ -44,8 +75,8 @@ public class PickObject : MonoBehaviour
         holdingItem = true;
 
         transform.SetParent(holdPoint, true); 
-        transform.localPosition = new Vector3(0, 0, 1);
-        transform.localRotation = Quaternion.Euler(0, 270, 0);
+        transform.localPosition = new Vector3(0, 0, holdDistance);
+        transform.localRotation = Quaternion.Euler(0, 90, 0);
         transform.localScale = originalScale;
 
         rb.useGravity = false;
@@ -77,8 +108,7 @@ public class PickObject : MonoBehaviour
 
         bool placed = false;
 
-        foreach (RaycastHit hit in hits)
-        {
+        foreach (RaycastHit hit in hits){
             Transform slot = hit.collider.transform;
 
             if (slot.parent != null && slot.parent.name.ToLower().Contains("moldura")){
@@ -119,10 +149,15 @@ public class PickObject : MonoBehaviour
 
         transform.SetParent(snapPoint);
         transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.Euler(0, 270, 0);
+        transform.localRotation = Quaternion.Euler(0, 90, 0);
 
         rb.useGravity = false;
         rb.isKinematic = true;
+
+        // Notifica o manager do puzzle caso este seja um dos itens do circuito
+        if (CircuitPuzzleManager.Instance != null){
+            CircuitPuzzleManager.Instance.ReportPlacement(gameObject.name, slotName);
+        }
 
         CheckLogicGatePlacement(slotName);
     }
@@ -149,16 +184,14 @@ public class PickObject : MonoBehaviour
         }
     }
 
-    void OnTriggerEnter(Collider other)
-    {
+    void OnTriggerEnter(Collider other){
         if (other.CompareTag("Player") && !holdingItem){
             playerNear = true;
             interactionText.SetActive(true);
         }
     }
 
-    void OnTriggerExit(Collider other)
-    {
+    void OnTriggerExit(Collider other){
         if (other.CompareTag("Player")){
             playerNear = false;
             interactionText.SetActive(false);
