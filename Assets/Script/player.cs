@@ -27,6 +27,9 @@ public class Player : MonoBehaviour
     float crouchHeight = 1.0f;
 
     bool isCrouching;
+    
+    [Header("Física de Empurrão")]
+    public float pushPower = 2.0f;
 
     void Start()
     {
@@ -119,5 +122,23 @@ public class Player : MonoBehaviour
 
         Vector3 finalSpeed = forward + strafe + vertical;
         controller.Move(finalSpeed * Time.deltaTime);
+    }
+
+    // Método para empurrar objetos com física (Rigidbody)
+    void OnControllerColliderHit(ControllerColliderHit hit){
+        Rigidbody body = hit.collider.attachedRigidbody;
+
+        if (body == null) return;
+
+        if (body.isKinematic){
+            body.isKinematic = false;
+            body.useGravity = true;
+        }
+
+        if (hit.moveDirection.y < -0.3f) return;
+
+        Vector3 pushDir = new Vector3(hit.moveDirection.x, 0, hit.moveDirection.z);
+
+        body.linearVelocity = pushDir * pushPower;
     }
 }
