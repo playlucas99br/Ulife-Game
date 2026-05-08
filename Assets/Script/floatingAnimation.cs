@@ -7,12 +7,12 @@ public class FloatingText : MonoBehaviour
 
     private Vector3 startPos;
 
-    void Start()
+    public void Start()
     {
         startPos = transform.position;
     }
 
-    void Update()
+    public void Update()
     {
         float offsetY = Mathf.Sin(Time.time * frequency) * amplitude;
         transform.position = startPos + new Vector3(0, offsetY, 0);

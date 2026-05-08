@@ -18,14 +18,14 @@ public class PickObject : MonoBehaviour{
 
     Vector3 originalScale;
 
-    void Start(){
+    public void Start(){
         rb = GetComponent<Rigidbody>();
         rb.isKinematic = true;
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         originalScale = transform.localScale;
     }
 
-    void Update(){
+    public void Update(){
         // Tecla E: pegar ou soltar
         if (Input.GetKeyDown(KeyCode.E)){
             if (!picked && playerNear && !holdingItem){
@@ -45,7 +45,7 @@ public class PickObject : MonoBehaviour{
         }
     }
 
-    void UpdateHeldPosition(){
+    public void UpdateHeldPosition(){
         // Prevenir colisão com o próprio objeto
         int oldLayer = gameObject.layer;
         gameObject.layer = 2; // Ignore Raycast
@@ -70,7 +70,7 @@ public class PickObject : MonoBehaviour{
         transform.localPosition = Vector3.Lerp(transform.localPosition, targetLocalPos, Time.deltaTime * 15f);
     }
 
-    void Pick(){
+    public void Pick(){
         picked = true;
         holdingItem = true;
 
@@ -85,7 +85,7 @@ public class PickObject : MonoBehaviour{
         interactionText.SetActive(false);
     }
 
-    void Drop(){
+    public void Drop(){
         picked = false;
         holdingItem = false;
 
@@ -96,7 +96,7 @@ public class PickObject : MonoBehaviour{
         rb.isKinematic = false;
     }
 
-    void TryPlace(){
+    public void TryPlace(){
         if (!picked){
             Debug.Log("Não está segurando item");
             return;
@@ -139,11 +139,11 @@ public class PickObject : MonoBehaviour{
         }
     }
 
-    bool CanPlaceItemInSlot(string itemName, string slotName){
+    public bool CanPlaceItemInSlot(string itemName, string slotName){
         return true;
     }
 
-    void PlaceOnSlot(Transform snapPoint, string slotName){
+    public void PlaceOnSlot(Transform snapPoint, string slotName){
         picked = false;
         holdingItem = false;
 
@@ -162,7 +162,7 @@ public class PickObject : MonoBehaviour{
         CheckLogicGatePlacement(slotName);
     }
 
-    void CheckLogicGatePlacement(string slotName){
+    public void CheckLogicGatePlacement(string slotName){
         string heldItemName = gameObject.name.ToLower();
         
         if (slotName.Contains("molduraLogicaOr") && heldItemName.Contains("or") && !heldItemName.Contains("xor")){
@@ -174,7 +174,7 @@ public class PickObject : MonoBehaviour{
         }
     }
 
-    void DestroyGateBox(string boxName){
+    public void DestroyGateBox(string boxName){
         GameObject box = GameObject.Find(boxName);
         if (box != null){
             Destroy(box);
@@ -184,14 +184,14 @@ public class PickObject : MonoBehaviour{
         }
     }
 
-    void OnTriggerEnter(Collider other){
+    public void OnTriggerEnter(Collider other){
         if (other.CompareTag("Player") && !holdingItem){
             playerNear = true;
             interactionText.SetActive(true);
         }
     }
 
-    void OnTriggerExit(Collider other){
+    public void OnTriggerExit(Collider other){
         if (other.CompareTag("Player")){
             playerNear = false;
             interactionText.SetActive(false);

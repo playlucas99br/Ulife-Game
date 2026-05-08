@@ -19,7 +19,7 @@ public class CircuitPuzzleManager : MonoBehaviour
     private bool resistorPlaced = false;
     private bool opened = false;
 
-    void Awake(){
+    public void Awake(){
         if (Instance == null){
             Instance = this;
         }else{
@@ -52,7 +52,7 @@ public class CircuitPuzzleManager : MonoBehaviour
         }
     }
 
-    IEnumerator SlideDoors(){
+    public IEnumerator SlideDoors(){
         Debug.Log("Todos os itens colocados! Abrindo portas...");
 
         if (porta1 == null || porta2 == null){

@@ -12,7 +12,7 @@ public class MessageTrigger : MonoBehaviour
     [Header("Visualização (Editor)")]
     public Color corDoGizmo = new Color(0, 1, 0, 0.3f);
 
-    private void OnTriggerEnter(Collider other){
+    public void OnTriggerEnter(Collider other){
         if (other.CompareTag("Player")){
             Debug.Log("<color=cyan>[Trigger]</color> " + mensagem);
 
@@ -22,7 +22,7 @@ public class MessageTrigger : MonoBehaviour
         }
     }
 
-    private void OnDrawGizmos(){
+    public void OnDrawGizmos(){
         Gizmos.color = corDoGizmo;
         Gizmos.matrix = transform.localToWorldMatrix;
         Gizmos.DrawCube(Vector3.zero, Vector3.one);
