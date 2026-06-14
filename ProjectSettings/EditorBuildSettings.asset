@@ -11,6 +11,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Industrial_Zone_Modular_Pack/Scenes/Industrial_Zone.unity
     guid: 99b085e82a8c40c4fa1defe16685b78b
+  - enabled: 1
+    path: Assets/Scenes/FaseLucas.unity
+    guid: fd616bfe9c1d3ac8cac78db6e6799338
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
