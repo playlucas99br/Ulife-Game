@@ -19,10 +19,10 @@ namespace FaseLucasGame
         public Vector3 areaMax = new Vector3(18f, 11f, 18f);
 
         [Header("Movement")]
-        public float maxSpeed = 6f;
+        public float maxSpeed = 17f;
 
         [Header("Grab")]
-        public float grabRadius = 1.4f;
+        public float grabRadius = 2.4f;
         public Transform grabPoint;            // bottom of the magnet
         public LayerMask grabbableMask = ~0;
 
@@ -89,11 +89,19 @@ namespace FaseLucasGame
         void UpdateBelowSensor()
         {
             Vector3 origin = grabPoint != null ? grabPoint.position : transform.position;
-            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 100f, grabbableMask, QueryTriggerInteraction.Ignore))
+            const float sensorRadius = 0.8f;
+            // Sweep a fat sphere straight down instead of a thin ray, so an object that is NEAR
+            // below (not only dead-centre) still registers its colour/distance. Start a touch
+            // above the grab-point so the sweep doesn't begin already overlapping the object
+            // directly beneath it (initial overlaps report distance 0 and no usable surface).
+            float lift = sensorRadius + 0.25f;
+            Vector3 castOrigin = origin + Vector3.up * lift;
+            if (Physics.SphereCast(castOrigin, sensorRadius, Vector3.down, out RaycastHit hit, 100f,
+                    grabbableMask, QueryTriggerInteraction.Ignore))
             {
-                SensorBelowDistance = hit.distance;
+                SensorBelowDistance = Mathf.Max(0f, hit.distance - lift);
                 Grabbable g = hit.collider.GetComponentInParent<Grabbable>();
-                SensorBelowColor = (g != null) ? g.ColorCode : 0;
+                SensorBelowColor = (g != null) ? g.ColorCode : 0;   // 0 none, 1 red, 2 blue
             }
             else
             {

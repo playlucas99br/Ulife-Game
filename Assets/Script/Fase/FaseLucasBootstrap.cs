@@ -34,6 +34,7 @@ namespace FaseLucasGame
         Material blueMat;
         Material emissiveAccent;
         Material energyField;
+        Material spawnFieldFaint;   // much fainter variant used only for the spawn doorway barrier
 
         Transform spawnPoint;
         Transform finalPoint;
@@ -89,6 +90,12 @@ namespace FaseLucasGame
             SetEmission(emissiveAccent, new Color(0.2f, 0.6f, 0.9f) * 1.5f);
             energyField = MakeTransparent(new Color(0.2f, 0.6f, 0.95f, 0.22f));
             SetEmission(energyField, new Color(0.2f, 0.6f, 0.95f) * 0.8f);
+
+            // Dedicated, much more see-through field just for the spawn doorway barrier, so the
+            // crane's movement in the pit is clearly visible. Kept separate from energyField so
+            // the exit PortalSurface (and the BridgeController reference) are unaffected.
+            spawnFieldFaint = MakeTransparent(new Color(0.2f, 0.6f, 0.95f, 0.07f));
+            SetEmission(spawnFieldFaint, new Color(0.2f, 0.6f, 0.95f) * 0.12f);
         }
 
         Material MakeTransparent(Color color)
@@ -207,9 +214,10 @@ namespace FaseLucasGame
             BuildFrontWall("SpawnFront", SpawnEdgeZ);
 
             // Removable energy field across the spawn doorway (drops when the bridge extends).
+            // Uses the faint variant so the player can clearly watch the crane through it.
             spawnBarrier = MakeBox("SpawnBarrier",
                 new Vector3(0, (balconyTopY + corridorHeight) * 0.5f, SpawnEdgeZ),
-                new Vector3(doorwayWidth, corridorHeight - balconyTopY, 0.2f), energyField);
+                new Vector3(doorwayWidth, corridorHeight - balconyTopY, 0.2f), spawnFieldFaint);
             Destroy(spawnBarrier.GetComponent<BoxCollider>());
             var barrierCol = spawnBarrier.AddComponent<BoxCollider>(); // solid so the player can't walk through yet
             barrierCol.size = Vector3.one;
@@ -316,8 +324,8 @@ namespace FaseLucasGame
             // the cubes/spheres, so the downward colour sensor can always read what is below it.
             magnet.areaMin = new Vector3(-WidthHalf + 2f, 2.6f, SpawnEdgeZ + 1f);
             magnet.areaMax = new Vector3(WidthHalf - 2f, balconyTopY - 2.5f, FinalEdgeZ - 1f);
-            magnet.maxSpeed = 8f;
-            magnet.grabRadius = 1.6f;
+            magnet.maxSpeed = 17f;    // headroom so the faster search sweep isn't clamped away
+            magnet.grabRadius = 2.4f; // forgiving pickup so the sweeping crane doesn't miss objects
         }
 
         void BuildIncinerator()

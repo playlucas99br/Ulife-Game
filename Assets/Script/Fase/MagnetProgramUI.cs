@@ -236,9 +236,11 @@ namespace FaseLucasGame
             if (p.z > mx.z - padZ) n.dirZ = -1f;
             else if (p.z < mn.z + padZ) n.dirZ = 1f;
 
-            // Fast back-and-forth in X with a slow crawl in Z so the down sensor passes over
-            // every object, while seeking the floor so the grab-point hovers just above them.
-            const float speedX = 7f, speedZ = 0.8f;
+            // Fast back-and-forth in X with a brisk crawl in Z, while seeking the floor so the
+            // grab-point hovers just above the objects. The wide spherecast below-sensor (radius
+            // ~0.8) means each X pass detects objects within ~1.45u, so the Z step between passes
+            // (speedZ*Xspan/speedX ~= 2.1u) still covers everything without missing cubes/spheres.
+            const float speedX = 14f, speedZ = 3f;
             float vy = (mn.y - p.y) * 4f;
             return new Vector3(n.dirX * speedX, vy, n.dirZ * speedZ);
         }
@@ -294,13 +296,19 @@ namespace FaseLucasGame
 
             // Title
             var title = UIFactory.Label("Title", panel.transform,
-                "PROGRAMACAO DO IMA   |   arraste blocos   |   clique SAIDA depois ENTRADA para ligar   |   RODA = zoom, arraste o fundo = navegar   |   MODO troca FACIL/DIFICIL   |   TAB fecha",
-                15, TextAnchor.MiddleLeft);
+                "PROGRAMACAO DO IMA   |   arraste blocos   |   ligue SAIDA -> ENTRADA   |   RODA = zoom, arraste = navegar   |   MODO: FACIL/DIFICIL   |   TAB fecha",
+                14, TextAnchor.MiddleLeft);
             title.rectTransform.anchorMin = new Vector2(0, 1);
             title.rectTransform.anchorMax = new Vector2(1, 1);
             title.rectTransform.pivot = new Vector2(0, 1);
             title.rectTransform.anchoredPosition = new Vector2(16, -8);
             title.rectTransform.sizeDelta = new Vector2(-32, 30);
+            // Best-fit guarantees the help line never spills off a narrow screen (overflow mode
+            // would otherwise let it run past the panel edge).
+            title.horizontalOverflow = HorizontalWrapMode.Wrap;
+            title.resizeTextForBestFit = true;
+            title.resizeTextMinSize = 9;
+            title.resizeTextMaxSize = 14;
             title.color = UIFactory.Accent;
 
             BuildPalette();
@@ -614,7 +622,11 @@ namespace FaseLucasGame
             float headerH = 24f;
             float rowH = 22f;
             float fieldH = (spec.hasValueField || spec.hasVarField) ? 26f : 0f;
-            float bodyH = headerH + spec.inputCount * rowH + fieldH + 8f;
+            // Pure output nodes (a sensor with no input rows and no field) still need a slab of
+            // body under the header for the output port to sit inside, otherwise the 14px port
+            // would hang below the node bottom.
+            float outRowH = (spec.hasOutput && spec.inputCount == 0 && fieldH == 0f) ? rowH : 0f;
+            float bodyH = headerH + spec.inputCount * rowH + fieldH + outRowH + 8f;
 
             var rootImg = UIFactory.Paneled("Node_" + kind, nodeCanvas, new Color(spec.color.r, spec.color.g, spec.color.b, 0.97f));
             var root = rootImg.rectTransform;
@@ -646,7 +658,11 @@ namespace FaseLucasGame
             hLabel.rectTransform.anchorMin = new Vector2(0, 0);
             hLabel.rectTransform.anchorMax = new Vector2(1, 1);
             hLabel.rectTransform.offsetMin = new Vector2(6, 0);
-            hLabel.rectTransform.offsetMax = new Vector2(-24, 0);
+            hLabel.rectTransform.offsetMax = new Vector2(-24, 0);   // clears the 'X' delete button
+            // Long labels (e.g. "Cor Abaixo (1=Verm 2=Azul)") shrink instead of overflowing.
+            hLabel.resizeTextForBestFit = true;
+            hLabel.resizeTextMinSize = 7;
+            hLabel.resizeTextMaxSize = 12;
 
             var del = UIFactory.Btn("Del", header.transform, "X", 12, new Color(0.5f, 0.15f, 0.15f, 1f));
             var delRT = del.GetComponent<RectTransform>();
@@ -674,8 +690,10 @@ namespace FaseLucasGame
                 inLbl.rectTransform.anchorMin = new Vector2(0, 1);
                 inLbl.rectTransform.anchorMax = new Vector2(1, 1);
                 inLbl.rectTransform.pivot = new Vector2(0, 1);
+                // Start right of the input port (x=8) and stop short of the output port (x~175)
+                // so a row-0 label never runs underneath it.
                 inLbl.rectTransform.anchoredPosition = new Vector2(20, y);
-                inLbl.rectTransform.sizeDelta = new Vector2(-24, rowH);
+                inLbl.rectTransform.sizeDelta = new Vector2(-42, rowH);
                 y -= rowH;
             }
 
@@ -708,13 +726,15 @@ namespace FaseLucasGame
 
         void PlaceField(RectTransform rt, float y)
         {
+            // Pivot/anchor at the node's top-left so the math is unambiguous: the field's top
+            // edge sits at 'y' (measured down from the node top) and it is 22px tall. The width
+            // is the node minus an 8px left inset and a 26px right inset so it never slides under
+            // the output port on the right. (W=190 -> field spans x[8,164].)
             rt.anchorMin = new Vector2(0, 1);
             rt.anchorMax = new Vector2(1, 1);
-            rt.pivot = new Vector2(0.5f, 1);
-            rt.offsetMin = new Vector2(8, 0);
-            rt.offsetMax = new Vector2(-8, 0);
-            rt.anchoredPosition = new Vector2(0, y - 2f);
-            rt.sizeDelta = new Vector2(rt.sizeDelta.x, 22);
+            rt.pivot = new Vector2(0, 1);
+            rt.sizeDelta = new Vector2(-34f, 22f);
+            rt.anchoredPosition = new Vector2(8f, y - 2f);
         }
 
         RectTransform MakePort(RectTransform parent, ProgramNode node, int inputIndex, bool isOutput)
@@ -896,73 +916,66 @@ namespace FaseLucasGame
             ClearAll();
             exampleColY = new Dictionary<int, float>();
 
-            // --- sensors & shared logic (column 0) ---
+            // --- sensors & state reads (column 0) ---
             var posX = New(NodeKind.PosX, 0);
             var posZ = New(NodeKind.PosZ, 0);
             var posY = New(NodeKind.PosY, 0);
             var holding = New(NodeKind.IsHolding, 0);
             var notHolding = New(NodeKind.Not, 0); Connect(holding, notHolding, 0);
             var tGet = NewVarGet("t", 0);
+            var belowColor = New(NodeKind.BelowColor, 0);
+            var redScore = New(NodeKind.RedScore, 0);
+            var blueScore = New(NodeKind.BlueScore, 0);
 
-            // --- constants (column 1) ---
+            // --- constants (column 1) --- (the "red below = 1" constant just reuses c1)
             var c1 = NewConst(1f, 1);
-            var c0 = NewConst(0f, 1);
             var cXmax = NewConst(5f, 1);
             var cXmin = NewConst(-5f, 1);
             var cZmax = NewConst(28f, 1);
             var cZmin = NewConst(-28f, 1);
-            var cSpeedX = NewConst(7f, 1);
-            var cSpeedZ = NewConst(0.8f, 1);   // slow Z crawl => the down sensor passes over every object
-            var cYtarget = NewConst(4f, 1);
-            var cLift = NewConst(5f, 1);
-            var cPull = NewConst(-1.5f, 1);
-            var cDive = NewConst(-4f, 1);
-            var cHigh = NewConst(3.5f, 1);
+            var cSpeedX = NewConst(14f, 1);
+            var cSpeedZ = NewConst(3f, 1);
+            var cBlue = NewConst(2f, 1);       // 2 = blue directly below
+            var cPull = NewConst(-1.6f, 1);    // steer-to-origin gain while carrying
+            var cLift = NewConst(5f, 1);       // vertical P gain
+            var cYbase = NewConst(2.6f, 1);    // hover height while searching (the floor)
+            var cYrise = NewConst(1.6f, 1);    // extra height while carrying => 4.2 over the furnace
+            var goal = New(NodeKind.Goal, 1);
 
-            // --- one-shot "boot" pulse: boot = (t == 0) on the first step, then t := 1 forever ---
-            // It seeds the bounce directions so the sweep never stalls at the centre.
-            var boot = New(NodeKind.Equals, 2); Connect(tGet, boot, 0); Connect(c0, boot, 1);
+            // --- one-shot "boot" pulse: 1 on the first step (t still 0), then t := 1 forever ---
+            // Seeds the bounce directions so the sweep never stalls at the centre.
+            var boot = New(NodeKind.Not, 2); Connect(tGet, boot, 0);   // Not(0)=1 first step, Not(1)=0 after
             var setT = NewVarSet("t", 2); Connect(c1, setT, 0);
 
-            // --- search sweep: bounce in X (fast) and Z (slow) between the walls ---
+            // --- search sweep: bounce fast in X and slower in Z between the walls (cols 3-4) ---
             var scanVelX = BuildBounce("dx", posX, cXmax, cXmin, cSpeedX, c1, boot, notHolding, 3);
             var scanVelZ = BuildBounce("dz", posZ, cZmax, cZmin, cSpeedZ, c1, boot, notHolding, 4);
 
-            // --- delivery: once lifted clear of the rim, steer to the origin (the furnace) ---
-            var high = New(NodeKind.Greater, 5); Connect(posY, high, 0); Connect(cHigh, high, 1);
-            var gateXZ = New(NodeKind.Mul, 5); Connect(holding, gateXZ, 0); Connect(high, gateXZ, 1);
-
+            // --- delivery: while carrying, steer X/Z back to the furnace at the origin (column 5) ---
+            // The lift below is fast enough that the object clears the rim before it reaches centre,
+            // so no separate "high" gate is needed.
             var delVelX = New(NodeKind.Mul, 5); Connect(posX, delVelX, 0); Connect(cPull, delVelX, 1);
-            var delVelXg = New(NodeKind.Mul, 5); Connect(delVelX, delVelXg, 0); Connect(gateXZ, delVelXg, 1);
+            var delVelXg = New(NodeKind.Mul, 5); Connect(delVelX, delVelXg, 0); Connect(holding, delVelXg, 1);
             var delVelZ = New(NodeKind.Mul, 5); Connect(posZ, delVelZ, 0); Connect(cPull, delVelZ, 1);
-            var delVelZg = New(NodeKind.Mul, 5); Connect(delVelZ, delVelZg, 0); Connect(gateXZ, delVelZg, 1);
+            var delVelZg = New(NodeKind.Mul, 5); Connect(delVelZ, delVelZg, 0); Connect(holding, delVelZg, 1);
 
-            // --- vertical: dive while searching, rise to furnace height while carrying ---
-            var scanY = New(NodeKind.Mul, 5); Connect(notHolding, scanY, 0); Connect(cDive, scanY, 1);
-            var errY = New(NodeKind.Sub, 5); Connect(cYtarget, errY, 0); Connect(posY, errY, 1);
-            var liftY = New(NodeKind.Mul, 5); Connect(errY, liftY, 0); Connect(cLift, liftY, 1);
-            var liftYg = New(NodeKind.Mul, 5); Connect(liftY, liftYg, 0); Connect(holding, liftYg, 1);
+            // --- vertical: one P-controller toward a target that is the floor while searching and
+            //     the furnace height while carrying (column 5) ---
+            var holdLift = New(NodeKind.Mul, 5); Connect(holding, holdLift, 0); Connect(cYrise, holdLift, 1);
+            var yTarget = New(NodeKind.Add, 5); Connect(cYbase, yTarget, 0); Connect(holdLift, yTarget, 1);
+            var errY = New(NodeKind.Sub, 5); Connect(yTarget, errY, 0); Connect(posY, errY, 1);
+            var velY = New(NodeKind.Mul, 5); Connect(errY, velY, 0); Connect(cLift, velY, 1);
 
-            // --- combine search + delivery per axis (column 6) ---
+            // --- combine search + delivery for the horizontal axes (column 6) ---
             var sumX = New(NodeKind.Add, 6); Connect(scanVelX, sumX, 0); Connect(delVelXg, sumX, 1);
             var sumZ = New(NodeKind.Add, 6); Connect(scanVelZ, sumZ, 0); Connect(delVelZg, sumZ, 1);
-            var sumY = New(NodeKind.Add, 6); Connect(scanY, sumY, 0); Connect(liftYg, sumY, 1);
 
-            // --- colour-aware grab: only close the claw on a colour we still need ---
-            // belowColor is 1 for red and 2 for blue; the score sensors tell us how many of
-            // each are already burned, so once a colour reaches the goal we stop grabbing it.
-            var belowColor = New(NodeKind.BelowColor, 0);
-            var redScore = New(NodeKind.RedScore, 0);
-            var blueScore = New(NodeKind.BlueScore, 0);
-            var goal = New(NodeKind.Goal, 1);
-            var cRed = NewConst(1f, 1);    // 1 = red directly below
-            var cBlue = NewConst(2f, 1);   // 2 = blue directly below
-
-            var isRed = New(NodeKind.Equals, 2); Connect(belowColor, isRed, 0); Connect(cRed, isRed, 1);
+            // --- colour-aware grab: close the claw only on a colour we still need ---
+            // belowColor is 1 for red, 2 for blue; once a colour reaches the goal we skip it.
+            var isRed = New(NodeKind.Equals, 2); Connect(belowColor, isRed, 0); Connect(c1, isRed, 1);
             var isBlue = New(NodeKind.Equals, 2); Connect(belowColor, isBlue, 0); Connect(cBlue, isBlue, 1);
             var redNeed = New(NodeKind.Less, 2); Connect(redScore, redNeed, 0); Connect(goal, redNeed, 1);     // redScore < goal
             var blueNeed = New(NodeKind.Less, 2); Connect(blueScore, blueNeed, 0); Connect(goal, blueNeed, 1); // blueScore < goal
-
             var needRed = New(NodeKind.And, 3); Connect(isRed, needRed, 0); Connect(redNeed, needRed, 1);
             var needBlue = New(NodeKind.And, 3); Connect(isBlue, needBlue, 0); Connect(blueNeed, needBlue, 1);
             var grabCond = New(NodeKind.Or, 4); Connect(needRed, grabCond, 0); Connect(needBlue, grabCond, 1);
@@ -970,7 +983,7 @@ namespace FaseLucasGame
             // --- actuators (column 7) ---
             var moveX = New(NodeKind.MoveX, 7); Connect(sumX, moveX, 0);
             var moveZ = New(NodeKind.MoveZ, 7); Connect(sumZ, moveZ, 0);
-            var moveY = New(NodeKind.MoveY, 7); Connect(sumY, moveY, 0);
+            var moveY = New(NodeKind.MoveY, 7); Connect(velY, moveY, 0);
             var grab = New(NodeKind.Grab, 7); Connect(grabCond, grab, 0);   // only close on a colour we still need
 
             FrameAll();
